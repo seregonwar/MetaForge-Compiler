@@ -1,0 +1,8 @@
+// Import delle librerie necessarie
+import "c" "stdio.h";
+
+// Funzione principale
+fn main() -> i32 {
+    printf("Hello, World!\n");
+    ret 0;
+} 
