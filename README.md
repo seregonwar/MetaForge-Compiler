@@ -50,6 +50,43 @@ Run the following command to view all available options:
 python src/compile_metaforge.py --help
 ```
 
+## Compilation Methods in **MetaForge**
+
+MetaForge provides three compilation methods, each tailored to specific project needs.
+
+---
+
+### 1. **Native Compilation**  
+- **Description**: Uses MetaForge’s native compiler to directly convert `.mf` files into `.exe` executables.  
+- **Features**:  
+  - Direct compilation without intermediaries.  
+  - **Pros**: Maximum stability, high performance, and secure output.  
+  - **Use Case**: Best suited for standalone programs and native applications.  
+
+---
+
+### 2. **Compilation via GCC**  
+- **Description**: Utilizes the GCC compiler through a multi-step process:  
+  1. Converts the `.mf` file into an intermediate C file.  
+  2. Compiles the C file into libraries (DLL) or object files (Obj).  
+  3. Optionally links the object files to produce an executable.  
+- **Features**:  
+  - **Pros**: Ideal for creating support libraries or reusable components.  
+  - **Cons**: Not recommended for complete programs due to reduced stability and security compared to native compilation.  
+  - **Use Case**: Useful for building add-ons or ensuring interoperability with C-based projects.  
+
+---
+
+### 3. **Compilation via Python**  
+- **Description**: Similar to the GCC method but uses Python as the intermediary language.  
+  - Python translates the `.mf` file into executable or web-compatible code, with some performance trade-offs.  
+  - Since Python is a higher-level language than MetaForge and C, this results in a performance drop (up to 70% of MetaForge’s potential).  
+- **Features**:  
+  - **Pros**: Essential for web applications and compatible with technologies such as WebAssembly.  
+  - **Cons**: Higher overhead and lower performance compared to other methods.  
+  - **Use Case**: Designed to enable MetaForge in web environments and applications requiring online integration.  
+
+---
 ## Example Directory Structure
 ```plaintext
 MetaForge-Compiler/
