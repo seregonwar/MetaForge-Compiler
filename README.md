@@ -4,7 +4,7 @@ MetaForge Compiler (MFC) is the native compiler for the **MetaForge** programmin
 
 ## Features
 - Native compilation for the MetaForge language.
-- Support for cross-platform targets (e.g., Windows, Linux).
+- Support for cross-platform targets (e.g., Windows, Linux, MacOS and FreeBSD system like Ps* system).
 - Adjustable architecture options (e.g., x64, ARM).
 - Verbose output for debugging and monitoring the compilation process.
 
