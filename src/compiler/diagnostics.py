@@ -1,156 +1,93 @@
-from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, List, Dict
 from pathlib import Path
-import json
-import os
+import logging
 
 class DiagnosticLevel(Enum):
     ERROR = "error"
     WARNING = "warning"
-    INFO = "info" 
-    HINT = "hint"
+    INFO = "info"
 
 class DiagnosticCode(Enum):
+    # Lexical errors
+    INVALID_CHARACTER = "E001"
+    UNTERMINATED_STRING = "E002"
+    
     # Syntax errors
-    SYNTAX_ERROR = "E001"
-    UNEXPECTED_TOKEN = "E002"
-    MISSING_TOKEN = "E003"
+    UNEXPECTED_TOKEN = "E003"
+    MISSING_TOKEN = "E004"
     
-    # Semantic errors
-    TYPE_ERROR = "E101"
-    UNDEFINED_SYMBOL = "E102"
-    REDEFINED_SYMBOL = "E103"
+    # Type errors
+    TYPE_MISMATCH = "E005"
+    UNDEFINED_TYPE = "E006"
+    INCOMPATIBLE_TYPES = "E007"
     
-    # Compilation errors
-    COMPILATION_ERROR = "E201"
-    LINKER_ERROR = "E202"
+    # Name errors
+    UNDEFINED_VARIABLE = "E008"
+    UNDEFINED_FUNCTION = "E009"
+    UNDEFINED_CLASS = "E010"
+    UNDEFINED_MEMBER = "E011"
     
-    # Warnings
-    UNUSED_VARIABLE = "W001"
-    IMPLICIT_CONVERSION = "W002"
-    DEPRECATED_FEATURE = "W003"
-
-@dataclass
-class Diagnostic:
-    level: DiagnosticLevel
-    code: DiagnosticCode
-    message: str
-    location: 'SourceLocation'
-    hint: Optional[str] = None
-    related: List['Diagnostic'] = None
-
-@dataclass 
-class SourceLocation:
-    file: Path
-    line: int
-    column: int
+    # OOP errors
+    ABSTRACT_INSTANTIATION = "E012"
+    MISSING_OVERRIDE = "E013"
+    INVALID_OVERRIDE = "E014"
+    INTERFACE_VIOLATION = "E015"
+    
+    # Other errors
+    COMPILATION_ERROR = "E999"
+    TYPE_ERROR = "E998"
 
 class DiagnosticEmitter:
-    """Handles emission and formatting of diagnostics"""
-    
     def __init__(self):
-        self.diagnostics: List[Diagnostic] = []
-        self.db = DiagnosticDB()
+        self.errors = []
+        self.warnings = []
         
-    def emit_error(self, message: str, file: Path, line: int = 1, column: int = 1, code: DiagnosticCode = DiagnosticCode.COMPILATION_ERROR):
-        """Emits an error"""
-        self.emit(Diagnostic(
-            level=DiagnosticLevel.ERROR,
-            code=code,
-            message=message,
-            location=SourceLocation(file, line, column)
-        ))
-        
-    def emit_warning(self, message: str, file: Path, line: int = 1, column: int = 1, code: DiagnosticCode = DiagnosticCode.DEPRECATED_FEATURE):
-        """Emits a warning"""
-        self.emit(Diagnostic(
-            level=DiagnosticLevel.WARNING,
-            code=code,
-            message=message,
-            location=SourceLocation(file, line, column)
-        ))
-        
-    def emit(self, diagnostic: Diagnostic):
-        """Emits a diagnostic"""
-        self.diagnostics.append(diagnostic)
-        self._print_diagnostic(diagnostic)
-        
-    def _print_diagnostic(self, d: Diagnostic):
-        """Formats and prints a diagnostic in modern style"""
-        # ANSI colors
-        colors = {
-            DiagnosticLevel.ERROR: "\033[1;31m",   # Bold red
-            DiagnosticLevel.WARNING: "\033[1;33m",  # Bold yellow
-            DiagnosticLevel.INFO: "\033[1;36m",     # Bold cyan
-            DiagnosticLevel.HINT: "\033[1;32m"      # Bold green
+    def emit_error(self, message: str, file: Path, code: DiagnosticCode, line: int = 0, column: int = 0):
+        """Emit an error diagnostic"""
+        error = {
+            'level': DiagnosticLevel.ERROR,
+            'code': code,
+            'message': message,
+            'file': str(file),
+            'line': line,
+            'column': column
         }
-        reset = "\033[0m"
+        self.errors.append(error)
+        logging.error(f"{file}:{line}:{column}: error {code.value}: {message}")
         
-        # Header
-        print(f"\n{colors[d.level]}{d.level.value}[{d.code.value}]{reset}: {d.message}")
+    def emit_warning(self, message: str, file: Path, code: DiagnosticCode, line: int = 0, column: int = 0):
+        """Emit a warning diagnostic"""
+        warning = {
+            'level': DiagnosticLevel.WARNING,
+            'code': code,
+            'message': message,
+            'file': str(file),
+            'line': line,
+            'column': column
+        }
+        self.warnings.append(warning)
+        logging.warning(f"{file}:{line}:{column}: warning {code.value}: {message}")
         
-        # Location
-        print(f"  --> {d.location.file}:{d.location.line}:{d.location.column}")
-        
-        # Code snippet
-        if d.location.file.exists():
-            self._print_code_snippet(d.location)
+    def emit_info(self, message: str, file: Path = None):
+        """Emit an informational diagnostic"""
+        if file:
+            logging.info(f"{file}: {message}")
+        else:
+            logging.info(message)
             
-        # Hint
-        if d.hint:
-            print(f"{colors[DiagnosticLevel.HINT]}hint:{reset} {d.hint}")
-            
-        # Known solution
-        solution = self.db.get_solution(d)
-        if solution:
-            print(f"\n{colors[DiagnosticLevel.INFO]}suggested fix:{reset} {solution}")
-            
-    def _print_code_snippet(self, location: SourceLocation):
-        """Prints code snippet with error highlighting"""
-        try:
-            lines = location.file.read_text().splitlines()
-            line_num = location.line - 1
-            
-            # Print 3 lines of context
-            start = max(0, line_num - 2)
-            end = min(len(lines), line_num + 3)
-            
-            print()
-            for i in range(start, end):
-                prefix = "  "
-                if i == line_num:
-                    prefix = "->"
-                print(f"{prefix} {i+1:>4} | {lines[i]}")
-                
-                if i == line_num:
-                    # Highlight error column
-                    print(f"     | {' ' * (location.column-1)}^")
-                    
-        except Exception:
-            pass
-
-class DiagnosticDB:
-    """Database of known errors and solutions"""
-    
-    def __init__(self):
-        self.db_path = Path(__file__).parent / "diagnostic_db.json"
-        self.known_issues = self._load_db()
+    def has_errors(self) -> bool:
+        """Check if there are any errors"""
+        return len(self.errors) > 0
         
-    def _load_db(self) -> Dict:
-        if not self.db_path.exists():
-            return {}
-        return json.loads(self.db_path.read_text())
+    def get_error_count(self) -> int:
+        """Get the number of errors"""
+        return len(self.errors)
         
-    def get_solution(self, diagnostic: Diagnostic) -> Optional[str]:
-        """Looks up known solution for diagnostic"""
-        key = f"{diagnostic.code.value}:{diagnostic.message}"
-        return self.known_issues.get(key)
+    def get_warning_count(self) -> int:
+        """Get the number of warnings"""
+        return len(self.warnings)
         
-    def add_solution(self, diagnostic: Diagnostic, solution: str):
-        """Adds new solution to database"""
-        key = f"{diagnostic.code.value}:{diagnostic.message}"
-        self.known_issues[key] = solution
-        
-        with open(self.db_path, 'w') as f:
-            json.dump(self.known_issues, f, indent=2)
+    def clear(self):
+        """Clear all diagnostics"""
+        self.errors.clear()
+        self.warnings.clear()

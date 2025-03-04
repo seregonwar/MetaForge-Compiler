@@ -47,248 +47,220 @@ class Scope:
         child.parent = self
         self.children.append(child)
 
+class TypeInfo:
+    def __init__(self, name: str, is_primitive: bool = False):
+        self.name = name
+        self.is_primitive = is_primitive
+        self.fields = {}  # name -> type
+        self.methods = {}  # name -> (return_type, param_types)
+        self.parent = None
+        self.interfaces = []
+        
+    def add_field(self, name: str, field_type: str):
+        self.fields[name] = field_type
+        
+    def add_method(self, name: str, return_type: str, param_types: List[str]):
+        self.methods[name] = (return_type, param_types)
+        
+    def get_field_type(self, name: str):
+        return self.fields.get(name)
+        
+    def get_method_info(self, name: str):
+        return self.methods.get(name)
+
 class SemanticAnalyzer:
-    def __init__(self):
+    def __init__(self, diagnostics=None):
+        self.types = {}  # name -> TypeInfo
+        self.current_class = None
+        self.errors = []
+        self.diagnostics = diagnostics
         self.global_scope = Scope("global")
         self.current_scope = self.global_scope
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
-        self.used_symbols: Set[str] = set()
+        self.warnings = []
+        self.used_symbols = set()
         
-    def _all_scopes(self) -> Iterator[Scope]:
-        """Iterates over all scopes in DFS order"""
-        def visit_scope(scope: Scope):
-            yield scope
-            for child in scope.children:
-                yield from visit_scope(child)
-                
-        yield from visit_scope(self.global_scope)
-        
+        # Add primitive types
+        for type_name in ['i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64',
+                         'f32', 'f64', 'bool', 'string']:
+            self.types[type_name] = TypeInfo(type_name, True)
+            
     def analyze(self, ast: Dict) -> bool:
         """Performs complete semantic analysis"""
         try:
-            # First pass: symbol collection
-            self._collect_symbols(ast)
+            # First pass: collect all types
+            self._collect_types(ast)
             
-            # Second pass: type checking
-            self._check_types(ast)
+            # Second pass: validate type relationships
+            self._validate_types()
             
-            # Third pass: flow analysis
-            self._analyze_control_flow(ast)
-            
+            # Third pass: analyze declarations
+            if 'declarations' in ast:
+                for decl in ast['declarations']:
+                    self._analyze_declaration(decl)
+                    
             # Fourth pass: additional checks
             self._check_unused_symbols()
-            self._check_circular_dependencies()
-            self._validate_exports()
             
             return len(self.errors) == 0
             
         except Exception as e:
+            if self.diagnostics:
+                self.diagnostics.error(f"Fatal semantic error: {str(e)}")
             self.errors.append(f"Fatal semantic error: {str(e)}")
             return False
             
-    def _collect_symbols(self, node: Dict, scope: str = "global"):
-        """Collects all symbols defined in the code"""
-        if node['type'] == 'Program':
-            for decl in node['declarations']:
-                self._collect_symbols(decl, scope)
+    def _collect_types(self, ast: Dict):
+        """Collects all type declarations from AST"""
+        if ast['type'] == 'Program':
+            for decl in ast.get('declarations', []):
+                if decl['type'] in ['Class', 'Interface', 'Struct']:
+                    name = decl['name']
+                    if name in self.types:
+                        self.errors.append(f"Type {name} already defined")
+                    else:
+                        self.types[name] = TypeInfo(name)
+                        
+    def _validate_types(self):
+        """Validate type relationships (inheritance, interfaces)"""
+        for type_name, type_info in self.types.items():
+            if type_info.parent and type_info.parent not in self.types:
+                self.errors.append(f"Unknown parent type {type_info.parent} for {type_name}")
                 
-        elif node['type'] == 'Function':
-            # Add function to current scope
+            for interface in type_info.interfaces:
+                if interface not in self.types:
+                    self.errors.append(f"Unknown interface {interface} for {type_name}")
+                    
+    def _analyze_declaration(self, decl: Dict):
+        """Analyze a declaration"""
+        if decl['type'] == 'Function':
+            self._analyze_function(decl)
+        elif decl['type'] == 'Class':
+            self.current_class = decl['name']
+            for method in decl.get('methods', []):
+                self._analyze_method(method)
+            for field in decl.get('fields', []):
+                self._analyze_field(field)
+            self.current_class = None
+            
+    def _analyze_method(self, method: Dict):
+        """Analyze a method declaration"""
+        if not self._is_valid_type(method['return_type']):
+            self.errors.append(f"Invalid return type {method['return_type']} in method {method['name']}")
+            
+        for param in method.get('params', []):
+            if not self._is_valid_type(param['type']):
+                self.errors.append(f"Invalid parameter type {param['type']} in method {method['name']}")
+                
+        self._analyze_function(method)
+        
+    def _analyze_field(self, field: Dict):
+        """Analyze a field declaration"""
+        if not self._is_valid_type(field['type']):
+            self.errors.append(f"Invalid field type {field['type']} for field {field['name']}")
+            
+    def _analyze_function(self, func: Dict):
+        """Analyze a function declaration"""
+        # Create new scope for function
+        function_scope = Scope(func['name'], self.current_scope)
+        self.current_scope.add_child(function_scope)
+        old_scope = self.current_scope
+        self.current_scope = function_scope
+        
+        # Add parameters to scope
+        for param in func.get('params', []):
             symbol = Symbol(
-                name=node['name'],
-                type=SymbolType.FUNCTION,
-                data_type=node['return_type'],
-                scope=scope,
-                location=(node.get('line', 0), node.get('column', 0)),
-                is_exported=node.get('exported', False)
+                name=param['name'],
+                type=SymbolType.VARIABLE,
+                data_type=param['type'],
+                scope=function_scope.name,
+                location=(param.get('line', 0), param.get('column', 0))
             )
+            if not function_scope.add_symbol(symbol):
+                self.errors.append(f"Duplicate parameter name {param['name']}")
+                
+        # Analyze body
+        if 'body' in func:
+            self._analyze_statement(func['body'])
             
-            if not self.current_scope.add_symbol(symbol):
-                self.errors.append(f"Symbol {node['name']} already defined in scope {scope}")
-                return
-                
-            # Create new scope for function body
-            function_scope = Scope(f"{scope}.{node['name']}", self.current_scope)
-            self.current_scope.add_child(function_scope)
-            
-            # Analyze parameters
-            old_scope = self.current_scope
-            self.current_scope = function_scope
-            
-            for param in node.get('params', []):
-                self._collect_symbols(param, function_scope.name)
-                
-            # Analyze body
-            if 'body' in node:
-                self._collect_symbols(node['body'], function_scope.name)
-                
-            self.current_scope = old_scope
-                
-        elif node['type'] == 'Block':
+        self.current_scope = old_scope
+        
+    def _analyze_statement(self, stmt: Dict):
+        """Analyze a statement"""
+        if stmt['type'] == 'Block':
             # Create new scope for block
-            block_scope = Scope(f"{scope}.block{len(self.current_scope.children)}", self.current_scope)
+            block_scope = Scope(f"block{len(self.current_scope.children)}", self.current_scope)
             self.current_scope.add_child(block_scope)
-            
             old_scope = self.current_scope
             self.current_scope = block_scope
             
-            for stmt in node.get('statements', []):
-                self._collect_symbols(stmt, block_scope.name)
+            for s in stmt.get('statements', []):
+                self._analyze_statement(s)
                 
             self.current_scope = old_scope
             
-        elif node['type'] == 'Import':
-            # Imports don't define local symbols
-            pass
+        elif stmt['type'] == 'Return':
+            expr_type = self._get_expression_type(stmt['value'])
+            # TODO: Check return type matches function return type
             
-    def _check_types(self, node: Dict):
-        """Verifies type correctness"""
-        if node['type'] == 'Program':
-            for decl in node['declarations']:
-                self._check_types(decl)
+        elif stmt['type'] == 'VarDecl':
+            if not self._is_valid_type(stmt['var_type']):
+                self.errors.append(f"Invalid variable type {stmt['var_type']}")
                 
-        elif node['type'] == 'Function':
-            # Check return type
-            if node['return_type'] not in {'i32', 'void'}:  # Currently only support these
-                self.errors.append(f"Invalid return type: {node['return_type']}")
+            init_type = self._get_expression_type(stmt['init'])
+            if not self._are_types_compatible(init_type, stmt['var_type']):
+                self.errors.append(f"Type mismatch in variable declaration: expected {stmt['var_type']}, got {init_type}")
                 
-            # Check body
-            if 'body' in node:
-                self._check_types(node['body'])
+            symbol = Symbol(
+                name=stmt['name'],
+                type=SymbolType.VARIABLE,
+                data_type=stmt['var_type'],
+                scope=self.current_scope.name,
+                location=(stmt.get('line', 0), stmt.get('column', 0))
+            )
+            if not self.current_scope.add_symbol(symbol):
+                self.errors.append(f"Variable {stmt['name']} already declared in this scope")
                 
-        elif node['type'] == 'FunctionCall':
-            # Verify function exists
-            symbol = self.current_scope.lookup(node['name'])
-            if not symbol or symbol.type != SymbolType.FUNCTION:
-                self.errors.append(f"Undefined function: {node['name']}")
-            else:
-                self.used_symbols.add(node['name'])
-                
-        elif node['type'] == 'Return':
-            # Check return value type
-            if node['value']['type'] == 'NumberLiteral':
-                # Currently assume integer literals are i32
-                pass
-            else:
-                self.errors.append(f"Unsupported return type: {node['value']['type']}")
-                
-    def _analyze_control_flow(self, node: Dict):
-        """Analyzes control flow"""
-        if node['type'] == 'Function':
-            # Verify all paths return a value
-            if not self._has_return_path(node['body']):
-                self.warnings.append(f"Function {node['name']} may not return a value in all paths")
-                
-    def _has_return_path(self, node: Dict) -> bool:
-        """Checks if a node has a path ending in return"""
-        if node['type'] == 'Return':
+    def _get_expression_type(self, expr: Dict) -> str:
+        """Get the type of an expression"""
+        if expr['type'] == 'NumberLiteral':
+            return 'i32'  # Default number type
+        elif expr['type'] == 'StringLiteral':
+            return 'string'
+        elif expr['type'] == 'BoolLiteral':
+            return 'bool'
+        elif expr['type'] == 'Identifier':
+            symbol = self.current_scope.lookup(expr['name'])
+            if not symbol:
+                self.errors.append(f"Undefined variable {expr['name']}")
+                return 'unknown'
+            return symbol.data_type
+        elif expr['type'] == 'BinaryOp':
+            left_type = self._get_expression_type(expr['left'])
+            right_type = self._get_expression_type(expr['right'])
+            # TODO: Implement proper type checking for operators
+            return left_type
+        return 'unknown'
+        
+    def _is_valid_type(self, type_name: str) -> bool:
+        """Check if a type is valid"""
+        return type_name in self.types
+        
+    def _are_types_compatible(self, source: str, target: str) -> bool:
+        """Check if source type is compatible with target type"""
+        if source == target:
             return True
-            
-        elif node['type'] == 'Block':
-            for stmt in node.get('statements', []):
-                if self._has_return_path(stmt):
-                    return True
+        if source == 'unknown' or target == 'unknown':
+            return True  # Be lenient with unknown types
+        # TODO: Implement proper type compatibility checking
         return False
         
     def _check_unused_symbols(self):
-        """Checks for unused symbols"""
-        for scope in self._all_scopes():
+        """Check for unused symbols"""
+        def visit_scope(scope: Scope):
             for name, symbol in scope.symbols.items():
                 if name not in self.used_symbols and not symbol.is_exported:
                     self.warnings.append(f"Symbol {name} is never used")
-                    
-    def _check_circular_dependencies(self):
-        """Checks for circular dependencies"""
-        visited = set()
-        path = []
-        
-        def visit(symbol: Symbol):
-            if symbol.name in path:
-                cycle = ' -> '.join(path[path.index(symbol.name):] + [symbol.name])
-                self.errors.append(f"Circular dependency detected: {cycle}")
-                return
+            for child in scope.children:
+                visit_scope(child)
                 
-            if symbol.name in visited:
-                return
-                
-            visited.add(symbol.name)
-            path.append(symbol.name)
-            
-            for ref in (symbol.references or []):
-                visit(ref)
-                
-            path.pop()
-            
-        for symbol in self.global_scope.symbols.values():
-            visit(symbol)
-            
-    def _validate_exports(self):
-        """Validates exports"""
-        for symbol in self.global_scope.symbols.values():
-            if symbol.is_exported:
-                # Verify exported types are complete
-                if symbol.type == SymbolType.STRUCT:
-                    self._check_exported_struct(symbol)
-                    
-                # Verify exported functions use only public types
-                elif symbol.type == SymbolType.FUNCTION:
-                    self._check_exported_function(symbol)
-                    
-    def _get_expression_type(self, node: Dict) -> str:
-        """Determines expression type"""
-        if node['type'] == 'Literal':
-            return self._get_literal_type(node['value'])
-        elif node['type'] == 'Identifier':
-            symbol = self.current_scope.lookup(node['name'])
-            return symbol.data_type if symbol else 'unknown'
-        elif node['type'] == 'BinaryOp':
-            return self._get_operation_type(node)
-        return 'unknown'
-        
-    def _are_types_compatible(self, type1: str, type2: str, operation: str) -> bool:
-        """Verifies type compatibility"""
-        # Basic type compatibility rules
-        if type1 == type2:
-            return True
-            
-        # Numeric type conversions
-        numeric_types = {'i32', 'i64', 'f32', 'f64'}
-        if type1 in numeric_types and type2 in numeric_types:
-            return True
-            
-        return False
-        
-    def _check_return_paths(self, node: Dict) -> bool:
-        """Verifies all paths return a value"""
-        if node['type'] == 'Return':
-            return True
-            
-        elif node['type'] == 'Block':
-            has_return = False
-            for stmt in node.get('statements', []):
-                has_return = has_return or self._check_return_paths(stmt)
-            return has_return
-            
-        elif node['type'] == 'If':
-            # Both branches must return
-            return (self._check_return_paths(node['then']) and 
-                   self._check_return_paths(node['else']))
-                   
-        return False
-        
-    def _has_break_condition(self, node: Dict) -> bool:
-        """Checks loop exit conditions"""
-        if node['type'] == 'Break':
-            return True
-            
-        elif node['type'] == 'Block':
-            for stmt in node.get('statements', []):
-                if self._has_break_condition(stmt):
-                    return True
-                    
-        elif node['type'] == 'If':
-            return (self._has_break_condition(node['then']) or
-                   self._has_break_condition(node['else']))
-                   
-        return False
+        visit_scope(self.global_scope)

@@ -1,0 +1,130 @@
+# Advanced data structures with memory optimizations
+
+# Example 1: Custom Vector with hybrid memory management
+class Vector<T> {
+    hybrid T[] data
+    int size
+    int capacity
+    
+    func __init__(initial_capacity: int = 16) {
+        self.capacity = initial_capacity
+        self.data = alloc(sizeof(T) * capacity)
+        self.size = 0
+    }
+    
+    func push(item: T) {
+        if self.size == self.capacity {
+            self.grow()
+        }
+        self.data[self.size] = item
+        self.size += 1
+    }
+    
+    private func grow() {
+        auto new_capacity = self.capacity * 2
+        auto new_data = alloc(sizeof(T) * new_capacity)
+        memcpy(new_data, self.data, sizeof(T) * self.size)
+        dealloc(self.data)
+        self.data = new_data
+        self.capacity = new_capacity
+    }
+}
+
+# Example 2: Memory-efficient Binary Tree
+class TreeNode<T> {
+    T value
+    @pool_size(1000)  # Pool tree nodes for better memory efficiency
+    TreeNode<T>* left
+    TreeNode<T>* right
+}
+
+class BinaryTree<T> {
+    TreeNode<T>* root
+    
+    func insert(value: T) {
+        if root == null {
+            root = new TreeNode<T>(value)
+            return
+        }
+        self._insert_recursive(root, value)
+    }
+    
+    private func _insert_recursive(node: TreeNode<T>*, value: T) {
+        if value < node.value {
+            if node.left == null {
+                node.left = new TreeNode<T>(value)
+            } else {
+                self._insert_recursive(node.left, value)
+            }
+        } else {
+            if node.right == null {
+                node.right = new TreeNode<T>(value)
+            } else {
+                self._insert_recursive(node.right, value)
+            }
+        }
+    }
+}
+
+# Example 3: Arena-based String Builder
+@arena_allocate
+class StringBuilder {
+    char[] buffer
+    int position
+    
+    func __init__(initial_capacity: int = 1024) {
+        self.buffer = alloc(initial_capacity)
+        self.position = 0
+    }
+    
+    func append(str: string) {
+        auto len = str.length
+        memcpy(self.buffer + self.position, str, len)
+        self.position += len
+    }
+    
+    func to_string() -> string {
+        return string(self.buffer, self.position)
+    }
+}
+
+# Example 4: Memory-pooled Hash Table
+@pool_size(10000)
+class HashNode<K, V> {
+    K key
+    V value
+    HashNode<K, V>* next
+}
+
+class HashMap<K, V> {
+    HashNode<K, V>*[] buckets
+    int size
+    int bucket_count
+    
+    func __init__(bucket_count: int = 16) {
+        self.bucket_count = bucket_count
+        self.buckets = alloc(sizeof(HashNode<K,V>*) * bucket_count)
+        self.size = 0
+    }
+    
+    func put(key: K, value: V) {
+        auto hash = compute_hash(key)
+        auto index = hash % self.bucket_count
+        
+        auto node = self.buckets[index]
+        while node != null {
+            if node.key == key {
+                node.value = value
+                return
+            }
+            node = node.next
+        }
+        
+        auto new_node = new HashNode<K,V>()
+        new_node.key = key
+        new_node.value = value
+        new_node.next = self.buckets[index]
+        self.buckets[index] = new_node
+        self.size += 1
+    }
+}

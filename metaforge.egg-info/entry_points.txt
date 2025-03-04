@@ -1,0 +1,2 @@
+[console_scripts]
+metaforge = src.compiler.main:main

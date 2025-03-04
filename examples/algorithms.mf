@@ -1,0 +1,126 @@
+# Algorithm examples showcasing MetaForge's features
+
+# Example 1: Sorting with different memory strategies
+func quicksort<T>(arr: T[], low: int, high: int) {
+    if low < high {
+        auto pivot = partition(arr, low, high)
+        quicksort(arr, low, pivot - 1)
+        quicksort(arr, pivot + 1, high)
+    }
+}
+
+@arena_allocate  # Use arena allocation for temporary partitioning
+func partition<T>(arr: T[], low: int, high: int) -> int {
+    auto pivot = arr[high]
+    auto i = low - 1
+    
+    for j in range(low, high) {
+        if arr[j] <= pivot {
+            i += 1
+            swap(arr, i, j)
+        }
+    }
+    swap(arr, i + 1, high)
+    return i + 1
+}
+
+# Example 2: Graph algorithms with pooled nodes
+@pool_size(1000)
+class GraphNode {
+    int value
+    Vector<GraphNode*> neighbors
+}
+
+class Graph {
+    Vector<GraphNode*> nodes
+    
+    @arena_allocate  # Use arena for temporary BFS data
+    func bfs(start: GraphNode*) {
+        auto visited = new Set<GraphNode*>()
+        auto queue = new Queue<GraphNode*>()
+        
+        queue.push(start)
+        visited.add(start)
+        
+        while !queue.empty() {
+            auto node = queue.pop()
+            print(node.value)
+            
+            for neighbor in node.neighbors {
+                if !visited.contains(neighbor) {
+                    queue.push(neighbor)
+                    visited.add(neighbor)
+                }
+            }
+        }
+    }
+}
+
+# Example 3: Dynamic Programming with hybrid memory
+func fibonacci(n: int) -> int {
+    hybrid Vector<int> memo = new Vector(n + 1)
+    memo.push(0)
+    memo.push(1)
+    
+    for i in range(2, n + 1) {
+        memo.push(memo[i-1] + memo[i-2])
+    }
+    
+    return memo[n]
+}
+
+# Example 4: Matrix operations with optimized memory
+class Matrix {
+    hybrid float[][] data
+    int rows, cols
+    
+    func __init__(rows: int, cols: int) {
+        self.rows = rows
+        self.cols = cols
+        self.data = alloc(rows * sizeof(float*))
+        for i in range(0, rows) {
+            self.data[i] = alloc(cols * sizeof(float))
+        }
+    }
+    
+    @arena_allocate
+    func multiply(other: Matrix) -> Matrix {
+        if self.cols != other.rows {
+            raise Error("Invalid matrix dimensions")
+        }
+        
+        auto result = new Matrix(self.rows, other.cols)
+        
+        for i in range(0, self.rows) {
+            for j in range(0, other.cols) {
+                auto sum = 0.0
+                for k in range(0, self.cols) {
+                    sum += self.data[i][k] * other.data[k][j]
+                }
+                result.data[i][j] = sum
+            }
+        }
+        
+        return result
+    }
+}
+
+# Example 5: Parallel algorithms with shared memory
+@parallel
+func parallel_sum(arr: float[]) -> float {
+    if arr.length < 1000 {
+        return sum(arr)
+    }
+    
+    auto mid = arr.length / 2
+    auto left = arr[0:mid]
+    auto right = arr[mid:]
+    
+    # Spawn parallel tasks
+    auto left_sum = spawn parallel_sum(left)
+    auto right_sum = spawn parallel_sum(right)
+    
+    # Wait for results
+    sync
+    return left_sum + right_sum
+}

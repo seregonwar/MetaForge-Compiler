@@ -1,225 +1,298 @@
+from typing import Dict, List, Optional, Set
 from dataclasses import dataclass
-from typing import List, Dict, Optional
-from enum import Enum
 import logging
-
-class IROpCode(Enum):
-    # Memory operations
-    LOAD = "load"      # Load value into register
-    STORE = "store"    # Store value to memory
-    LEA = "lea"        # Load Effective Address
-    MOV = "mov"        # Move data between registers
-    
-    # Arithmetic operations
-    ADD = "add"
-    SUB = "sub" 
-    MUL = "mul"
-    DIV = "div"
-    
-    # Flow control
-    JMP = "jmp"        # Unconditional jump
-    JZ = "jz"         # Jump if zero
-    JNZ = "jnz"       # Jump if not zero
-    CALL = "call"     # Function call
-    RET = "ret"       # Return
-    
-    # Stack management
-    PUSH = "push"
-    POP = "pop"
-    
-    # Comparisons
-    CMP = "cmp"
-    TEST = "test"
 
 @dataclass
 class IRInstruction:
-    opcode: IROpCode
-    dest: Optional[str] = None
-    src1: Optional[str] = None
-    src2: Optional[str] = None
-    immediate: Optional[int] = None
-    label: Optional[str] = None
+    op: str
+    args: List[str]
+    result: Optional[str] = None
 
 class IRGenerator:
     def __init__(self):
+        self.instructions = []
         self.temp_counter = 0
         self.label_counter = 0
-        self.string_literals: Dict[str, str] = {}
-        self.current_function: Optional[str] = None
+        self.current_function = None
+        self.current_class = None
+        self.string_literals = {}
+        self.vtables = {}
         
-    def generate(self, ast: Dict) -> Dict:
+    def generate(self, ast: Dict) -> List[IRInstruction]:
         """Generate IR from AST"""
-        logging.info("Generating IR from AST...")
-        
         try:
-            ir = {
-                'functions': {},
-                'globals': {},
-                'strings': self.string_literals,
-                'entry_point': '_start'
-            }
+            # First pass: collect class information for vtables
+            self._collect_class_info(ast)
             
-            # Generate initialization code
-            ir['init'] = self._generate_init()
-            
-            # Process global declarations
+            # Second pass: generate IR for declarations
             for decl in ast['declarations']:
-                if decl['type'] == 'Function':
-                    logging.debug(f"Processing function: {decl['name']}")
-                    ir['functions'][decl['name']] = self._generate_function(decl)
-                elif decl['type'] == 'Import':
-                    logging.debug(f"Processing import: {decl['path']}")
-                    self._process_import(decl, ir)
-                    
-            logging.info(f"Generated IR with {len(ir['functions'])} functions")
-            return ir
+                self._generate_declaration(decl)
+                
+            return self.instructions
             
         except Exception as e:
-            logging.error(f"Failed to generate IR: {str(e)}", exc_info=True)
-            raise
-            
-    def _generate_init(self) -> List[Dict]:
-        """Generate initialization code"""
-        return [
-            {'type': 'label', 'name': '_start'},
-            # Setup stack frame
-            {'type': 'instruction', 'opcode': IROpCode.PUSH, 'operands': ['rbp']},
-            {'type': 'instruction', 'opcode': IROpCode.MOV, 'operands': ['rbp', 'rsp']},
-            # Reserve stack space
-            {'type': 'instruction', 'opcode': IROpCode.SUB, 'operands': ['rsp', 32]},
-            # Call main
-            {'type': 'instruction', 'opcode': IROpCode.CALL, 'target': 'main'},
-            # Cleanup and exit
-            {'type': 'instruction', 'opcode': IROpCode.MOV, 'operands': ['rsp', 'rbp']},
-            {'type': 'instruction', 'opcode': IROpCode.POP, 'operands': ['rbp']},
-            {'type': 'instruction', 'opcode': IROpCode.RET}
-        ]
-            
-    def _generate_function(self, node: Dict) -> Dict:
-        """Generate IR for a function"""
-        self.current_function = node['name']
-        
-        function = {
-            'name': node['name'],
-            'params': node.get('params', []),
-            'return_type': node.get('return_type', 'void'),
-            'stack_size': 0,
-            'instructions': []
-        }
-        
-        # Function prologue
-        function['instructions'].extend([
-            {'type': 'label', 'name': node['name']},
-            {'type': 'instruction', 'opcode': IROpCode.PUSH, 'operands': ['rbp']},
-            {'type': 'instruction', 'opcode': IROpCode.MOV, 'operands': ['rbp', 'rsp']},
-            {'type': 'instruction', 'opcode': IROpCode.SUB, 'operands': ['rsp', 32]}  # Shadow space
-        ])
-        
-        # Generate IR for function body
-        if 'body' in node:
-            for stmt in node['body']['statements']:
-                ir_stmt = self._generate_statement(stmt)
-                function['instructions'].extend(ir_stmt)
-                
-        # Function epilogue if no return present
-        if not function['instructions'] or function['instructions'][-1]['opcode'] != IROpCode.RET:
-            function['instructions'].extend([
-                {'type': 'instruction', 'opcode': IROpCode.MOV, 'operands': ['rsp', 'rbp']},
-                {'type': 'instruction', 'opcode': IROpCode.POP, 'operands': ['rbp']},
-                {'type': 'instruction', 'opcode': IROpCode.RET}
-            ])
-            
-        return function
-        
-    def _generate_statement(self, node: Dict) -> List[Dict]:
-        """Generate IR for a statement"""
-        if node['type'] == 'FunctionCall':
-            return self._generate_call(node)
-        elif node['type'] == 'Return':
-            return self._generate_return(node)
-        else:
-            logging.warning(f"Unsupported statement type: {node['type']}")
+            logging.error(f"IR generation failed: {str(e)}")
             return []
             
-    def _generate_call(self, node: Dict) -> List[Dict]:
-        """Generate IR for a function call"""
-        instructions = []
-        
-        # Load arguments into registers
-        arg_regs = ['rcx', 'rdx', 'r8', 'r9']  # Windows x64 calling convention
-        for i, arg in enumerate(node['arguments']):
-            if i < len(arg_regs):
-                if arg['type'] == 'StringLiteral':
-                    # Add string to data section
-                    str_label = f'str_{len(self.string_literals)}'
-                    self.string_literals[str_label] = arg['value']
+    def _collect_class_info(self, ast: Dict):
+        """Collect class information for vtables"""
+        for decl in ast['declarations']:
+            if decl['type'] == 'ClassDeclaration':
+                class_name = decl['name']
+                vtable = []
+                
+                # Add parent methods first if exists
+                if 'extends' in decl:
+                    parent_vtable = self.vtables.get(decl['extends'], [])
+                    vtable.extend(parent_vtable)
                     
-                    instructions.append({
-                        'type': 'instruction',
-                        'opcode': IROpCode.LEA,
-                        'operands': [arg_regs[i], str_label]
-                    })
-                elif arg['type'] == 'NumberLiteral':
-                    instructions.append({
-                        'type': 'instruction',
-                        'opcode': IROpCode.MOV,
-                        'operands': [arg_regs[i], arg['value']]
-                    })
+                # Add/override methods
+                for member in decl['body']:
+                    if member['type'] == 'MethodDeclaration':
+                        method_name = member['name']
+                        # Find method slot or append
+                        found = False
+                        for i, (name, _) in enumerate(vtable):
+                            if name == method_name:
+                                vtable[i] = (method_name, f"{class_name}_{method_name}")
+                                found = True
+                                break
+                        if not found:
+                            vtable.append((method_name, f"{class_name}_{method_name}"))
+                            
+                self.vtables[class_name] = vtable
+                
+    def _generate_declaration(self, decl: Dict):
+        """Generate IR for a declaration"""
+        if decl['type'] == 'ClassDeclaration':
+            self.current_class = decl['name']
+            
+            # Generate vtable
+            vtable = self.vtables[decl['name']]
+            vtable_label = f"vtable_{decl['name']}"
+            self.instructions.append(IRInstruction('vtable', [decl['name']], vtable_label))
+            for method_name, impl_name in vtable:
+                self.instructions.append(IRInstruction('vtable_entry', [vtable_label, method_name, impl_name]))
+                
+            # Generate methods
+            for member in decl['body']:
+                if member['type'] == 'MethodDeclaration':
+                    self._generate_method(member)
                     
-        # Function call
-        instructions.append({
-            'type': 'instruction',
-            'opcode': IROpCode.CALL,
-            'target': node['name']
-        })
+            self.current_class = None
+            
+        elif decl['type'] == 'FunctionDeclaration':
+            self._generate_function(decl)
+            
+    def _generate_method(self, method: Dict):
+        """Generate IR for a method"""
+        self.current_function = f"{self.current_class}_{method['name']}"
         
-        return instructions
+        # Function prologue
+        self.instructions.append(IRInstruction('label', [self.current_function]))
+        self.instructions.append(IRInstruction('enter', [str(len(method['parameters']) + 1)]))  # +1 for this
         
-    def _generate_return(self, node: Dict) -> List[Dict]:
-        """Generate IR for a return statement"""
-        instructions = []
-        
-        if 'value' in node:
-            if node['value']['type'] == 'NumberLiteral':
-                instructions.append({
-                    'type': 'instruction',
-                    'opcode': IROpCode.MOV,
-                    'operands': ['rax', node['value']['value']]
-                })
+        # Store parameters
+        self.instructions.append(IRInstruction('store_param', ['0'], 'this'))
+        for i, param in enumerate(method['parameters'], 1):
+            self.instructions.append(IRInstruction('store_param', [str(i)], param['name']))
+            
+        # Generate body
+        if method['body']:
+            for stmt in method['body']:
+                self._generate_statement(stmt)
                 
         # Function epilogue
-        instructions.extend([
-            {'type': 'instruction', 'opcode': IROpCode.MOV, 'operands': ['rsp', 'rbp']},
-            {'type': 'instruction', 'opcode': IROpCode.POP, 'operands': ['rbp']},
-            {'type': 'instruction', 'opcode': IROpCode.RET}
-        ])
+        if not method['returnType'] or method['returnType'] == 'void':
+            self.instructions.append(IRInstruction('return_void', []))
+        self.instructions.append(IRInstruction('leave', []))
         
-        return instructions
+        self.current_function = None
+        
+    def _generate_function(self, func: Dict):
+        """Generate IR for a function"""
+        self.current_function = func['name']
+        
+        # Function prologue
+        self.instructions.append(IRInstruction('label', [func['name']]))
+        self.instructions.append(IRInstruction('enter', [str(len(func['parameters']))]))
+        
+        # Store parameters
+        for i, param in enumerate(func['parameters']):
+            self.instructions.append(IRInstruction('store_param', [str(i)], param['name']))
+            
+        # Generate body
+        if func['body']:
+            for stmt in func['body']:
+                self._generate_statement(stmt)
+                
+        # Function epilogue
+        if not func['returnType'] or func['returnType'] == 'void':
+            self.instructions.append(IRInstruction('return_void', []))
+        self.instructions.append(IRInstruction('leave', []))
+        
+        self.current_function = None
+        
+    def _generate_statement(self, stmt: Dict):
+        """Generate IR for a statement"""
+        if stmt['type'] == 'VariableDeclaration':
+            value = self._generate_expression(stmt['initializer'])
+            self.instructions.append(IRInstruction('store', [value], stmt['name']))
+            
+        elif stmt['type'] == 'ExpressionStatement':
+            self._generate_expression(stmt['expression'])
+            
+        elif stmt['type'] == 'ReturnStatement':
+            if stmt['value']:
+                value = self._generate_expression(stmt['value'])
+                self.instructions.append(IRInstruction('return', [value]))
+            else:
+                self.instructions.append(IRInstruction('return_void', []))
+                
+        elif stmt['type'] == 'IfStatement':
+            cond = self._generate_expression(stmt['condition'])
+            else_label = self._new_label()
+            end_label = self._new_label()
+            
+            self.instructions.append(IRInstruction('branch_false', [cond, else_label]))
+            
+            for s in stmt['thenBranch']:
+                self._generate_statement(s)
+            self.instructions.append(IRInstruction('jump', [end_label]))
+            
+            self.instructions.append(IRInstruction('label', [else_label]))
+            if stmt['elseBranch']:
+                for s in stmt['elseBranch']:
+                    self._generate_statement(s)
+                    
+            self.instructions.append(IRInstruction('label', [end_label]))
+            
+        elif stmt['type'] == 'WhileStatement':
+            start_label = self._new_label()
+            end_label = self._new_label()
+            
+            self.instructions.append(IRInstruction('label', [start_label]))
+            cond = self._generate_expression(stmt['condition'])
+            self.instructions.append(IRInstruction('branch_false', [cond, end_label]))
+            
+            for s in stmt['body']:
+                self._generate_statement(s)
+            self.instructions.append(IRInstruction('jump', [start_label]))
+            
+            self.instructions.append(IRInstruction('label', [end_label]))
+            
+    def _generate_expression(self, expr: Dict) -> str:
+        """Generate IR for an expression and return temp variable name"""
+        if expr['type'] == 'NumberLiteral':
+            temp = self._new_temp()
+            self.instructions.append(IRInstruction('load_const', [str(expr['value'])], temp))
+            return temp
+            
+        elif expr['type'] == 'StringLiteral':
+            if expr['value'] not in self.string_literals:
+                label = f"str_{len(self.string_literals)}"
+                self.string_literals[expr['value']] = label
+                self.instructions.append(IRInstruction('string', [expr['value']], label))
+            temp = self._new_temp()
+            self.instructions.append(IRInstruction('load_string', [self.string_literals[expr['value']]], temp))
+            return temp
+            
+        elif expr['type'] == 'BinaryExpression':
+            left = self._generate_expression(expr['left'])
+            right = self._generate_expression(expr['right'])
+            result = self._new_temp()
+            
+            op_map = {
+                '+': 'add', '-': 'sub', '*': 'mul', '/': 'div',
+                '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge',
+                '==': 'eq', '!=': 'ne', '&&': 'and', '||': 'or'
+            }
+            
+            self.instructions.append(IRInstruction(op_map[expr['operator']], [left, right], result))
+            return result
+            
+        elif expr['type'] == 'UnaryExpression':
+            operand = self._generate_expression(expr['operand'])
+            result = self._new_temp()
+            
+            op_map = {'-': 'neg', '!': 'not', '~': 'bit_not'}
+            self.instructions.append(IRInstruction(op_map[expr['operator']], [operand], result))
+            return result
+            
+        elif expr['type'] == 'CallExpression':
+            if isinstance(expr['callee'], dict) and expr['callee']['type'] == 'MemberAccess':
+                # Method call
+                obj = self._generate_expression(expr['callee']['object'])
+                method_name = expr['callee']['member']
+                
+                # Load vtable
+                vtable = self._new_temp()
+                self.instructions.append(IRInstruction('load_vtable', [obj], vtable))
+                
+                # Get method pointer
+                method_ptr = self._new_temp()
+                self.instructions.append(IRInstruction('vtable_method', [vtable, method_name], method_ptr))
+                
+                # Generate argument values
+                args = [self._generate_expression(arg) for arg in expr['arguments']]
+                
+                # Call through method pointer
+                result = self._new_temp()
+                self.instructions.append(IRInstruction('call_method', [method_ptr, obj] + args, result))
+                return result
+                
+            else:
+                # Function call
+                args = [self._generate_expression(arg) for arg in expr['arguments']]
+                result = self._new_temp()
+                self.instructions.append(IRInstruction('call', [expr['callee']['name']] + args, result))
+                return result
+                
+        elif expr['type'] == 'MemberAccess':
+            obj = self._generate_expression(expr['object'])
+            result = self._new_temp()
+            self.instructions.append(IRInstruction('get_field', [obj, expr['member']], result))
+            return result
+            
+        elif expr['type'] == 'Identifier':
+            temp = self._new_temp()
+            self.instructions.append(IRInstruction('load', [expr['name']], temp))
+            return temp
+            
+        elif expr['type'] == 'ThisExpression':
+            return 'this'
+            
+        elif expr['type'] == 'SuperExpression':
+            return 'this'  # super uses same object as this
+            
+        elif expr['type'] == 'NewExpression':
+            # Allocate object
+            size = self._new_temp()
+            self.instructions.append(IRInstruction('sizeof', [expr['className']], size))
+            
+            obj = self._new_temp()
+            self.instructions.append(IRInstruction('alloc', [size], obj))
+            
+            # Set vtable
+            vtable = f"vtable_{expr['className']}"
+            self.instructions.append(IRInstruction('set_vtable', [obj, vtable]))
+            
+            # Call constructor if exists
+            ctor_name = f"{expr['className']}_init"
+            self.instructions.append(IRInstruction('call', [ctor_name, obj]))
+            
+            return obj
+            
+        return self._new_temp()  # Fallback
         
     def _new_temp(self) -> str:
-        """Generate a new temporary name"""
+        """Generate new temporary variable name"""
+        temp = f"t{self.temp_counter}"
         self.temp_counter += 1
-        return f't{self.temp_counter}'
+        return temp
         
     def _new_label(self) -> str:
-        """Generate a new label"""
+        """Generate new label name"""
+        label = f"L{self.label_counter}"
         self.label_counter += 1
-        return f'L{self.label_counter}'
-        
-    def _add_string(self, value: str) -> int:
-        """Add a string to the data section"""
-        str_label = f'str_{len(self.string_literals)}'
-        self.string_literals[str_label] = value
-        return len(self.string_literals) - 1
-        
-    def _process_import(self, node: Dict, ir: Dict):
-        """Process an import declaration"""
-        # Add imported functions to IR
-        if 'functions' in node:
-            for func in node['functions']:
-                ir['functions'][func['name']] = {
-                    'name': func['name'],
-                    'params': func.get('params', []),
-                    'return_type': func.get('return_type', 'void'),
-                    'external': True
-                }
+        return label

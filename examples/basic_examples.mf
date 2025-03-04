@@ -1,0 +1,78 @@
+# Basic MetaForge examples demonstrating core features
+
+# Example 1: Basic variable declaration and memory management
+func main() {
+    # Automatic memory management (like Python)
+    auto x = 42
+    auto text = "Hello MetaForge"
+    
+    # Manual memory management (like C)
+    manual int* ptr = alloc(sizeof(int))
+    *ptr = 100
+    dealloc(ptr)
+    
+    # Hybrid memory management
+    hybrid Vector vec = new Vector(1000)  # Reference counted
+    vec.push(1)
+    vec.push(2)
+    # Automatically freed when ref count reaches 0
+}
+
+# Example 2: Object pooling for performance
+class PooledParticle {
+    float x, y, z
+    float velocity
+    float lifetime
+}
+
+@pool_size(1000)  # Use object pooling for particles
+func create_particle_system() {
+    auto particles = []
+    for i in range(0, 1000) {
+        particles.push(new PooledParticle())
+    }
+    return particles
+}
+
+# Example 3: Arena allocation for temporary objects
+@arena_allocate  # Use arena allocation for temporary calculations
+func matrix_multiply(Matrix a, Matrix b) {
+    auto result = new Matrix(a.rows, b.cols)
+    # Temporary calculations use arena memory
+    for i in range(0, a.rows) {
+        for j in range(0, b.cols) {
+            auto sum = 0
+            for k in range(0, a.cols) {
+                sum += a[i,k] * b[k,j]
+            }
+            result[i,j] = sum
+        }
+    }
+    return result  # Result is copied out of arena
+}
+
+# Example 4: Smart pointers and RAII
+class SmartResource {
+    manual Resource* ptr
+    
+    func __init__() {
+        self.ptr = acquire_resource()
+    }
+    
+    func __del__() {
+        if self.ptr != null {
+            release_resource(self.ptr)
+        }
+    }
+}
+
+# Example 5: Multi-syntax support
+# Python-style
+def calculate_sum(numbers):
+    return sum(x for x in numbers)
+
+// C-style
+int factorial(int n) {
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);
+}

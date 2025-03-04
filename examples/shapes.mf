@@ -1,0 +1,74 @@
+// Definizione di un'interfaccia
+interface Shape {
+    abstract fn getArea() -> f64;
+    abstract fn getPerimeter() -> f64;
+}
+
+// Classe base astratta
+abstract class AbstractShape implements Shape {
+    protected f64 x;
+    protected f64 y;
+    
+    constructor(x: f64, y: f64) {
+        this.x = x;
+        this.y = y;
+    }
+    
+    public fn getPosition() -> string {
+        ret f"Position: ({this.x}, {this.y})";
+    }
+}
+
+// Classe concreta che eredita da AbstractShape
+class Circle extends AbstractShape {
+    private f64 radius;
+    
+    constructor(x: f64, y: f64, radius: f64) {
+        super(x, y);
+        this.radius = radius;
+    }
+    
+    override public fn getArea() -> f64 {
+        ret 3.14159 * this.radius * this.radius;
+    }
+    
+    override public fn getPerimeter() -> f64 {
+        ret 2.0 * 3.14159 * this.radius;
+    }
+}
+
+// Classe concreta Rectangle
+class Rectangle extends AbstractShape {
+    private f64 width;
+    private f64 height;
+    
+    constructor(x: f64, y: f64, width: f64, height: f64) {
+        super(x, y);
+        this.width = width;
+        this.height = height;
+    }
+    
+    override public fn getArea() -> f64 {
+        ret this.width * this.height;
+    }
+    
+    override public fn getPerimeter() -> f64 {
+        ret 2.0 * (this.width + this.height);
+    }
+}
+
+// Funzione principale che usa le classi
+fn main() -> i32 {
+    let circle = new Circle(0.0, 0.0, 5.0);
+    let rectangle = new Rectangle(2.0, 2.0, 4.0, 3.0);
+    
+    printf("Circle area: %f\n", circle.getArea());
+    printf("Circle perimeter: %f\n", circle.getPerimeter());
+    printf("Circle position: %s\n", circle.getPosition());
+    
+    printf("\nRectangle area: %f\n", rectangle.getArea());
+    printf("Rectangle perimeter: %f\n", rectangle.getPerimeter());
+    printf("Rectangle position: %s\n", rectangle.getPosition());
+    
+    ret 0;
+}

@@ -178,3 +178,219 @@ class Optimizer:
             return node
             
         return eliminate_common_subexpressions(ast)
+
+from typing import Dict, List, Set, Optional
+from dataclasses import dataclass
+import logging
+
+from .ir_generator import IRInstruction
+
+@dataclass
+class BasicBlock:
+    """A basic block of IR instructions"""
+    instructions: List[IRInstruction]
+    predecessors: Set[int]  # Block IDs
+    successors: Set[int]   # Block IDs
+    id: int
+
+class IROptimizer:
+    def __init__(self):
+        self.blocks = []  # List of BasicBlock
+        self.current_function = None
+        
+    def optimize(self, instructions: List[IRInstruction]) -> List[IRInstruction]:
+        """Optimize IR instructions"""
+        try:
+            # Split into basic blocks
+            self.blocks = self._build_cfg(instructions)
+            
+            # Run optimization passes
+            changed = True
+            while changed:
+                changed = False
+                changed |= self._constant_folding()
+                changed |= self._dead_code_elimination()
+                changed |= self._common_subexpression_elimination()
+                
+            # Merge blocks back into instruction list
+            return self._flatten_cfg()
+            
+        except Exception as e:
+            logging.error(f"IR optimization failed: {str(e)}")
+            return instructions
+            
+    def _build_cfg(self, instructions: List[IRInstruction]) -> List[BasicBlock]:
+        """Build control flow graph from instructions"""
+        blocks = []
+        current_block = []
+        leaders = {0}  # First instruction is always a leader
+        
+        # Find basic block leaders
+        for i, instr in enumerate(instructions):
+            if instr.op == 'label':
+                leaders.add(i)
+            elif instr.op in ['jump', 'branch_false', 'return', 'return_void']:
+                leaders.add(i + 1)
+                
+        # Split into basic blocks
+        current_id = 0
+        for i, instr in enumerate(instructions):
+            if i in leaders and current_block:
+                blocks.append(BasicBlock(current_block, set(), set(), current_id))
+                current_id += 1
+                current_block = []
+            current_block.append(instr)
+            
+        if current_block:
+            blocks.append(BasicBlock(current_block, set(), set(), current_id))
+            
+        # Add edges between blocks
+        for i, block in enumerate(blocks):
+            last = block.instructions[-1]
+            
+            if last.op == 'jump':
+                target = self._find_label_block(blocks, last.args[0])
+                if target is not None:
+                    block.successors.add(target)
+                    blocks[target].predecessors.add(i)
+                    
+            elif last.op == 'branch_false':
+                # Fall through
+                if i + 1 < len(blocks):
+                    block.successors.add(i + 1)
+                    blocks[i + 1].predecessors.add(i)
+                    
+                # Branch target
+                target = self._find_label_block(blocks, last.args[1])
+                if target is not None:
+                    block.successors.add(target)
+                    blocks[target].predecessors.add(i)
+                    
+            elif last.op not in ['return', 'return_void']:
+                # Fall through
+                if i + 1 < len(blocks):
+                    block.successors.add(i + 1)
+                    blocks[i + 1].predecessors.add(i)
+                    
+        return blocks
+        
+    def _constant_folding(self) -> bool:
+        """Perform constant folding optimization"""
+        changed = False
+        
+        for block in self.blocks:
+            values = {}  # Variable -> constant value
+            
+            i = 0
+            while i < len(block.instructions):
+                instr = block.instructions[i]
+                
+                if instr.op == 'load_const' and instr.result:
+                    values[instr.result] = float(instr.args[0])
+                    i += 1
+                    continue
+                    
+                # Try to fold binary operations
+                if instr.op in ['add', 'sub', 'mul', 'div'] and instr.result:
+                    left = values.get(instr.args[0])
+                    right = values.get(instr.args[1])
+                    
+                    if left is not None and right is not None:
+                        try:
+                            if instr.op == 'add':
+                                result = left + right
+                            elif instr.op == 'sub':
+                                result = left - right
+                            elif instr.op == 'mul':
+                                result = left * right
+                            elif instr.op == 'div':
+                                if right == 0:
+                                    i += 1
+                                    continue
+                                result = left / right
+                                
+                            # Replace with constant
+                            block.instructions[i] = IRInstruction('load_const', [str(result)], instr.result)
+                            values[instr.result] = result
+                            changed = True
+                            
+                        except Exception:
+                            pass
+                            
+                i += 1
+                
+        return changed
+        
+    def _dead_code_elimination(self) -> bool:
+        """Perform dead code elimination"""
+        changed = False
+        
+        for block in self.blocks:
+            used_vars = set()
+            live_instructions = []
+            
+            # Scan backwards to find used variables
+            for instr in reversed(block.instructions):
+                keep = False
+                
+                # Instructions with side effects are always live
+                if instr.op in ['store', 'call', 'return', 'return_void', 'branch_false', 'jump']:
+                    keep = True
+                    
+                # Check if result is used
+                if instr.result and instr.result in used_vars:
+                    keep = True
+                    
+                if keep:
+                    live_instructions.insert(0, instr)
+                    # Add used variables
+                    used_vars.update(arg for arg in instr.args if isinstance(arg, str) and not arg.startswith('L'))
+                else:
+                    changed = True
+                    
+            if len(live_instructions) != len(block.instructions):
+                block.instructions = live_instructions
+                
+        return changed
+        
+    def _common_subexpression_elimination(self) -> bool:
+        """Perform common subexpression elimination"""
+        changed = False
+        
+        for block in self.blocks:
+            expressions = {}  # (op, args) -> result
+            
+            i = 0
+            while i < len(block.instructions):
+                instr = block.instructions[i]
+                
+                # Only consider pure operations
+                if instr.op in ['add', 'sub', 'mul', 'div', 'and', 'or', 'not', 'neg']:
+                    key = (instr.op, tuple(instr.args))
+                    
+                    if key in expressions:
+                        # Replace with existing result
+                        block.instructions[i] = IRInstruction('load', [expressions[key]], instr.result)
+                        changed = True
+                    else:
+                        expressions[key] = instr.result
+                        
+                i += 1
+                
+        return changed
+        
+    def _flatten_cfg(self) -> List[IRInstruction]:
+        """Convert CFG back to linear instruction list"""
+        instructions = []
+        
+        for block in self.blocks:
+            instructions.extend(block.instructions)
+            
+        return instructions
+        
+    def _find_label_block(self, blocks: List[BasicBlock], label: str) -> Optional[int]:
+        """Find block index containing given label"""
+        for i, block in enumerate(blocks):
+            if block.instructions and block.instructions[0].op == 'label' and block.instructions[0].args[0] == label:
+                return i
+        return None

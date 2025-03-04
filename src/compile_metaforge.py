@@ -200,62 +200,34 @@ def main():
                     # If it's a directory, use input filename
                     output_path = output_path / f"{input_path.stem}.exe"
             else:
-                # Default: use build directory in current directory
-                output_path = Path.cwd() / "build" / f"{input_path.stem}.exe"
+                # Default output path
+                output_path = input_path.with_suffix('.exe')
                 
-            # Create output directory
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Check write permissions
-            try:
-                # Try to create a temporary file in output directory
-                temp_file = output_path.parent / f"test_{os.getpid()}.tmp"
-                temp_file.touch()
-                temp_file.unlink()
-            except PermissionError:
-                logging.error(f"No write permission for directory: {output_path.parent}")
-                logging.error("Please run with appropriate permissions")
-                return 1
-                
-            logging.info(f"Input file: {input_path}")
-            logging.info(f"Output path: {output_path}")
-            
             # Build options
             options = build_compilation_options(args)
-            logging.debug(f"Compilation options: {options}")
             
-            # Create and initialize backend
+            # Create backend
             backend = create_backend(options)
-            if not backend:
-                logging.error("Failed to create backend")
-                return 1
-                
-            logging.info(f"Using backend: {backend.__class__.__name__}")
             
-            # Create pipeline
-            pipeline = CompilationPipeline(diagnostic, backend)
-            
-            # Compile
+            # Create compilation context
             context = CompilationContext(input_path, output_path, options)
-            success = pipeline.compile(context)
             
-            if not success:
+            # Create and run pipeline
+            pipeline = CompilationPipeline(diagnostic, backend)
+            if not pipeline.compile(context):
                 logging.error("Compilation failed")
                 return 1
                 
-            logging.info("Compilation successful")
+            logging.info(f"Successfully compiled {input_path} to {output_path}")
             return 0
             
-        except KeyboardInterrupt:
-            logging.info("\nCompilation interrupted by user")
-            return 1
         except Exception as e:
-            logging.error(f"Fatal error: {str(e)}", exc_info=True)
+            logging.error(f"Compilation error: {str(e)}", exc_info=True)
             return 1
             
     except Exception as e:
-        print(f"Fatal error: {str(e)}")
+        logging.error(f"Fatal error: {str(e)}", exc_info=True)
         return 1
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())
