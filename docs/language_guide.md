@@ -1,7 +1,4 @@
 # MetaForge Language Guide
-
-MetaForge is a modern systems programming language that combines the flexibility of high-level languages with the performance of low-level languages. It features innovative memory management and multi-syntax support.
-
 ## Core Language Features
 
 ### 1. Memory Management
