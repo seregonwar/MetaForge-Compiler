@@ -1,4 +1,44 @@
-from typing import Dict, List, Set, Optional
+# MetaForge Compiler - Adaptive Optimizer
+#
+# Copyright (c) 2025 SeregonWar (https://github.com/SeregonWar)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ---------------------------------------------------------------------------------
+# Project: MetaForge Compiler
+# Module: Adaptive Optimizer
+# Author: SeregonWar (https://github.com/SeregonWar)
+# License: MIT License
+#
+# Description:
+# This module implements an adaptive optimizer for the MetaForge Compiler.
+#
+# Key Features:
+# - Dynamically adjusts the optimization level based on the execution time.
+# - Provides a decorator to easily optimize functions.
+#
+# Usage & Extensibility:
+# To use the adaptive optimizer, simply decorate the function you want to optimize
+# with the @adaptive_optimize decorator. The decorator will dynamically adjust the
+# optimization level of the function based on its execution time.
+#
+# ---------------------------------------------------------------------------------
 from dataclasses import dataclass
 import time
 import logging

@@ -1,4 +1,39 @@
-from dataclasses import dataclass
+# MetaForge Compiler - Parser
+#
+# Copyright (c) 2025 SeregonWar (https://github.com/SeregonWar)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ---------------------------------------------------------------------------------
+# Project: MetaForge Compiler
+# Module: Parser
+# Author: SeregonWar (https://github.com/SeregonWar)
+# License: MIT License
+#
+# Description:
+# Parsers the source code into an Abstract Syntax Tree.
+#
+# Key Features:
+# - Recursive Descent Parsing
+#
+# Usage & Extensibility:
+# The parser can be extended with new productions and rules.
 from typing import List, Optional, Dict
 from enum import Enum
 import re
@@ -515,8 +550,8 @@ class MetaForgeParser:
         # Parallel computing statements
         if self.current_token.type == TokenType.SPAWN:
             return self.parse_spawn_statement()
-        if self.current_token.type == TokenType.SYNC:
-            return self.parse_sync_statement()
+        if self.current_token.type == TokenType.ASYNC:
+            return self.parse_async_statement()
             
         # Error handling
         if self.current_token.type == TokenType.RAISE:
@@ -825,12 +860,16 @@ class MetaForgeParser:
             'expression': expr
         }
         
-    def parse_sync_statement(self) -> Dict:
-        """Parse a sync statement"""
-        self.expect(TokenType.SYNC)
+    def parse_async_statement(self) -> Dict:
+        """Parse an async statement"""
+        self.expect(TokenType.ASYNC)
+        
+        # Parse block
+        body = self.parse_block()
         
         return {
-            'type': 'SyncStatement'
+            'type': 'AsyncStatement',
+            'body': body
         }
         
     def parse_range_expression(self) -> Dict:
@@ -1059,29 +1098,24 @@ class MetaForgeParser:
         
     def parse_spawn_statement(self) -> Dict:
         """Parse a spawn statement"""
-        self.next()  # Skip 'spawn'
+        self.expect(TokenType.SPAWN)
         
-        # Parse function call or block
-        body = None
-        if self.current_token.type == TokenType.LEFT_BRACE:
-            body = self.parse_block()
-        else:
-            body = self.parse_expression()
-            
+        expr = self.parse_expression()
+        
         return {
             'type': 'SpawnStatement',
-            'body': body
+            'expression': expr
         }
         
-    def parse_sync_statement(self) -> Dict:
-        """Parse a sync statement"""
-        self.next()  # Skip 'sync'
+    def parse_async_statement(self) -> Dict:
+        """Parse an async statement"""
+        self.expect(TokenType.ASYNC)
         
         # Parse block
         body = self.parse_block()
         
         return {
-            'type': 'SyncStatement',
+            'type': 'AsyncStatement',
             'body': body
         }
         
@@ -1162,4 +1196,32 @@ class MetaForgeParser:
             'type': 'ImportDeclaration',
             'module': module,
             'header': header
+        }
+
+    def parse_interface_declaration(self) -> Dict:
+        """Parse an interface declaration"""
+        self.expect(TokenType.INTERFACE)
+        
+        if self.current_token.type != TokenType.IDENTIFIER:
+            raise SyntaxError(f"Expected interface name, got {self.current_token.type.value}")
+        name = self.current_token.value
+        self.next()
+        
+        self.expect(TokenType.LEFT_BRACE)
+        
+        methods = []
+        while self.current_token.type != TokenType.RIGHT_BRACE:
+            self.skip_comments()
+            if self.current_token.type == TokenType.ABSTRACT:
+                self.next()
+                methods.append(self.parse_function_declaration())
+            else:
+                raise SyntaxError(f"Expected abstract method declaration, got {self.current_token.type.value}")
+        
+        self.expect(TokenType.RIGHT_BRACE)
+        
+        return {
+            'type': 'InterfaceDeclaration',
+            'name': name,
+            'methods': methods
         }

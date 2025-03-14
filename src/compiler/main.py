@@ -1,4 +1,45 @@
-import sys
+# MetaForge Compiler - Main
+#
+# Copyright (c) 2025 SeregonWar (https://github.com/SeregonWar)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ---------------------------------------------------------------------------------
+# Project: MetaForge Compiler
+# Module: Main
+# Author: SeregonWar (https://github.com/SeregonWar)
+# License: MIT License
+#
+# Description:
+# The main entry point for the MetaForge compiler.
+#
+# Key Features:
+# - Manage multiple syntax managers
+# - Manage multiple backends
+# - Compile a single source file
+# - Compile multiple source files
+#
+# Usage & Extensibility:
+# - Can be used as a command line tool or as a module in another Python program.
+# - Can be extended with new syntax managers and backends.
+#
+# ---------------------------------------------------------------------------------
 import os
 import logging
 from typing import List, Optional

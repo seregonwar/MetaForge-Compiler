@@ -1,3 +1,43 @@
+# MetaForge Compiler - Library Parser
+#
+# Copyright (c) 2025 SeregonWar (https://github.com/SeregonWar)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ---------------------------------------------------------------------------------
+# Project: MetaForge Compiler
+# Module: Library Parser
+# Author: SeregonWar (https://github.com/SeregonWar)
+# License: MIT License
+#
+# Description:
+# The module provides a parser for library files, which are used by the
+# MetaForge compiler to generate object files.
+#
+# Key Features:
+# - Parser for library files
+# - Support for multiple object files
+# - Support for debug information
+#
+# Usage & Extensibility:
+# The module can be used to generate object files from library files.
+# It can be extended to support additional features and functionality.
 from dataclasses import dataclass
 from typing import List, Dict, BinaryIO, Optional
 from pathlib import Path

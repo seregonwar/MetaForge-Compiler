@@ -1,4 +1,49 @@
-from pathlib import Path
+# MetaForge Compiler - Code Generator
+#
+# Copyright (c) 2025 SeregonWar (https://github.com/SeregonWar)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ---------------------------------------------------------------------------------
+# Project: MetaForge Compiler
+# Module: Code Generator
+# Author: SeregonWar (https://github.com/SeregonWar)
+# License: MIT License
+#
+# Description:
+# Generates C code from MetaForge files.
+#
+# Key Features:
+# - Generate C code from MetaForge files
+# - Support for multiple output types (e.g. shared libraries, static libraries, executables)
+#
+# Usage & Extensibility:
+# To use this module, you need to have the MetaForge compiler installed. You can then
+# use the generate_code function to generate C code from MetaForge files.
+#
+# The generate_code function takes three parameters: the path to the MetaForge file,
+# the path to the output directory, and the type of the output file. The type can be
+# one of the following: "dll", "lib", "exe".
+#
+# The function returns the path to the generated C code file.
+#
+# ---------------------------------------------------------------------------------
 from typing import Dict, Optional
 from .parser import MetaForgeLexer, MetaForgeParser
 from .templates import get_template

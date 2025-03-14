@@ -1,4 +1,51 @@
-from dataclasses import dataclass
+# MetaForge Compiler - Semantic Analyzer
+#
+# Copyright (c) 2025 SeregonWar (https://github.com/SeregonWar)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ---------------------------------------------------------------------------------
+# Project: MetaForge Compiler
+# Module: Semantic Analyzer
+# Author: SeregonWar (https://github.com/SeregonWar)
+# License: MIT License
+#
+# Description:
+# Analyzes the semantic of the source code and reports any errors found.
+#
+# Key Features:
+# - Support for declaring variables and functions
+# - Support for declaring and using structs and enums
+# - Support for declaring and using types
+# - Support for calling functions
+# - Support for using variables in expressions
+# - Support for using literals in expressions
+# - Support for using operators in expressions
+#
+# Usage & Extensibility:
+# This module is used by the MetaForge Compiler to analyze the source code of a
+# program. It can be extended to support more features such as support for
+# casting, support for compound statements, support for if and switch statements,
+# support for loops, support for jump statements, and support for functions with
+# multiple return statements.
+#
+# ---------------------------------------------------------------------------------
 from typing import Dict, List, Set, Optional, Iterator
 from enum import Enum
 from pathlib import Path
